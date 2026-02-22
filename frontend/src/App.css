@@ -1,0 +1,120 @@
+.layout {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.card {
+  background: #fff;
+  border: 1px solid #efdfd1;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(112, 80, 42, 0.08);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.muted {
+  color: #6f5b4a;
+  margin-top: 0;
+}
+
+.meta {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+input,
+select,
+button {
+  font-size: 14px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d7c2ad;
+}
+
+button {
+  background: #bc6c25;
+  color: white;
+  border-color: #bc6c25;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+.danger {
+  background: #b23a48;
+  border-color: #b23a48;
+}
+
+.chat-box {
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid #efdfd1;
+  border-radius: 8px;
+  background: #fffcf8;
+  margin-bottom: 8px;
+}
+
+.msg {
+  margin-bottom: 8px;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.msg.user {
+  background: #f5ebe0;
+}
+
+.msg.assistant {
+  background: #e3f2fd;
+}
+
+.toast-wrap {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.toast {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #222;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+}
+
+.toast.success {
+  background: #d8f3dc;
+}
+
+.toast.error {
+  background: #ffccd5;
+}
+
+@media (max-width: 768px) {
+  .layout {
+    padding: 12px;
+  }
+}
