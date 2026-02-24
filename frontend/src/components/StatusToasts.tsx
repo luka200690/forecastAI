@@ -14,6 +14,7 @@ export function StatusToasts({ toasts, onDismiss }: StatusToastsProps) {
     <div className="toast-wrap">
       {toasts.map((t) => (
         <div key={t.id} className={`toast ${t.type}`} onClick={() => onDismiss(t.id)}>
+          <span className="toast-icon">{t.type === "success" ? "✓" : "✕"}</span>
           {t.text}
         </div>
       ))}

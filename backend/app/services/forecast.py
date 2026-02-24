@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from ..models import Upload
-from ..schemas import FeatureImportanceItem, ForecastPoint, ForecastResponse, Granularity, Metrics, RiskMethod, RiskMetrics
+from ..schemas import FeatureImportanceItem, ForecastPoint, ForecastResponse, Granularity, HistoryPoint, Metrics, RiskMethod, RiskMetrics
 from .features import build_training_features
 from .risk import compute_risk
 
@@ -238,12 +238,18 @@ def generate_forecast(upload: Upload, horizon_days: int, threshold: float | None
         for ts, p10, p50, p90 in zip(future_ts, future_p10, future_p50, future_p90)
     ]
 
+    history = [
+        HistoryPoint(ts=ts.to_pydatetime().astimezone(timezone.utc), value=float(val))
+        for ts, val in zip(df["timestamp"], df["value"])
+    ]
+
     response = ForecastResponse(
         upload_id=upload.id,
         granularity=cast(Granularity, upload.granularity),
         metrics=metrics,
         feature_importance=feature_importance,
         forecast=forecast,
+        history=history,
         risk=risk,
     )
 

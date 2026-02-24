@@ -1,4 +1,6 @@
-﻿fastapi
+﻿python-dotenv
+requests
+fastapi
 uvicorn[standard]
 pandas
 numpy
@@ -12,3 +14,7 @@ xgboost
 scikit-learn
 pytest
 pyarrow
+python-jose[cryptography]
+apscheduler>=3.10
+scipy>=1.11
+pypdf>=4.0
