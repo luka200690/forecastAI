@@ -36,8 +36,10 @@ TalkToYourForecast is a local MVP SaaS-style app where you:
 ## Environment Variables
 
 ### Backend (`backend/.env`)
+- `AUTH_MODE` (`clerk` default, or `dev` for local bypass)
+- `DEV_USER_ID` (used only when `AUTH_MODE=dev`, default `local-dev-user`)
 - `OPENAI_API_KEY` (required for `/api/chat` and `/api/analysis`)
-- `CLERK_JWKS_URL` (required for authenticated API endpoints)
+- `CLERK_JWKS_URL` (required when `AUTH_MODE=clerk`)
 - `OPENAI_MODEL` (optional, default `gpt-4.1-mini`)
 - `DATA_DIR` (optional, default `./data`)
 - `CORS_ORIGINS` (optional, default `http://localhost:5173`)
@@ -55,8 +57,17 @@ Use `.env.example` as a reference template.
 ### Option A — one command startup
 ```powershell
 ./run_local.ps1 \
+  -AuthMode clerk \
   -ClerkPublishableKey "pk_test_..." \
   -ClerkJwksUrl "https://<your-clerk-domain>/.well-known/jwks.json" \
+  -OpenAIApiKey "sk-..."
+```
+
+Local-dev shortcut (no Clerk JWT validation):
+```powershell
+./run_local.ps1 \
+  -AuthMode dev \
+  -DevUserId "local-dev-user" \
   -OpenAIApiKey "sk-..."
 ```
 
@@ -68,6 +79,8 @@ This will:
 
 Useful flags:
 - `-Mode backend|frontend|all`
+- `-AuthMode clerk|dev`
+- `-DevUserId <id>`
 - `-UseReload`
 - `-SkipInstall`
 - `-BackendPort 8000`
@@ -94,9 +107,12 @@ npm run dev
 
 ## Authentication note (important)
 
-Most API endpoints require a valid `Authorization: Bearer <JWT>` token from Clerk.
+`AUTH_MODE` controls API authentication:
 
-If `CLERK_JWKS_URL` is not configured, authenticated requests will fail.
+- `AUTH_MODE=clerk` (default): most API endpoints require a valid `Authorization: Bearer <JWT>` token from Clerk.
+- `AUTH_MODE=dev`: backend bypasses JWT validation and uses `DEV_USER_ID` for all requests (local development only).
+
+If `AUTH_MODE=clerk` and `CLERK_JWKS_URL` is not configured, authenticated requests will fail.
 
 Endpoints requiring auth include (non-exhaustive):
 - `/api/uploads`

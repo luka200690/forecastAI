@@ -4,6 +4,9 @@ param(
     [string]$OpenAIApiKey = "",
     [string]$ClerkPublishableKey = "",
     [string]$ClerkJwksUrl = "",
+    [ValidateSet("clerk", "dev")]
+    [string]$AuthMode = "clerk",
+    [string]$DevUserId = "local-dev-user",
     [int]$BackendPort = 8010,
     [int]$FrontendPort = 5173,
     [switch]$UseReload,
@@ -58,6 +61,10 @@ if (($Mode -eq "all") -or ($Mode -eq "backend")) {
     $backendCmd = @("Set-Location '$root'")
     if ($OpenAIApiKey) {
         $backendCmd += "`$env:OPENAI_API_KEY='$OpenAIApiKey'"
+    }
+    $backendCmd += "`$env:AUTH_MODE='$AuthMode'"
+    if ($AuthMode -eq "dev") {
+        $backendCmd += "`$env:DEV_USER_ID='$DevUserId'"
     }
     if ($ClerkJwksUrl) {
         $backendCmd += "`$env:CLERK_JWKS_URL='$ClerkJwksUrl'"
@@ -114,10 +121,14 @@ if (-not $ClerkPublishableKey) {
     }
 }
 
-if (-not $ClerkJwksUrl) {
+if ($AuthMode -eq "clerk" -and -not $ClerkJwksUrl) {
     $backendEnvFile = Join-Path $backendDir ".env"
     $hasClerkJwks = (Test-Path $backendEnvFile) -and (Get-Content $backendEnvFile | Where-Object { $_ -match "^CLERK_JWKS_URL=\S" })
     if (-not $hasClerkJwks) {
-        Write-Host "No CLERK_JWKS_URL found. Authenticated endpoints will fail until it is set (backend/.env or -ClerkJwksUrl)." -ForegroundColor Yellow
+        Write-Host "No CLERK_JWKS_URL found. AUTH_MODE=clerk requires it (backend/.env or -ClerkJwksUrl)." -ForegroundColor Yellow
     }
+}
+
+if ($AuthMode -eq "dev") {
+    Write-Host "AUTH_MODE=dev enabled. Backend will trust DEV_USER_ID='$DevUserId'. Do not use in production." -ForegroundColor Yellow
 }

@@ -53,6 +53,8 @@ from .services.weather import get_weather_forecast
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "./data"))
 CLERK_JWKS_URL = os.getenv("CLERK_JWKS_URL", "")
+AUTH_MODE = os.getenv("AUTH_MODE", "clerk").strip().lower()
+DEV_USER_ID = os.getenv("DEV_USER_ID", "local-dev-user").strip() or "local-dev-user"
 
 app = FastAPI(title="TalkToYourForecast API", version="0.2.0")
 
@@ -69,6 +71,15 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if AUTH_MODE not in {"clerk", "dev"}:
+        raise RuntimeError("Invalid AUTH_MODE. Use 'clerk' or 'dev'.")
+
+    if AUTH_MODE == "clerk" and not CLERK_JWKS_URL:
+        raise RuntimeError("AUTH_MODE=clerk requires CLERK_JWKS_URL.")
+
+    if AUTH_MODE == "dev":
+        print(f"[auth] AUTH_MODE=dev enabled. Using DEV_USER_ID='{DEV_USER_ID}'.")
     Base.metadata.create_all(bind=engine)
     # SQLite migrations: add columns if they don't exist
     with engine.connect() as conn:
@@ -123,14 +134,29 @@ def _get_clerk_jwks() -> dict:
     return resp.json()
 
 
-def get_current_user(authorization: str = Header(...)) -> str:
-    if not authorization.startswith("Bearer "):
+def get_current_user(authorization: str | None = Header(default=None)) -> str:
+    if AUTH_MODE == "dev":
+        return DEV_USER_ID
+
+    if AUTH_MODE != "clerk":
+        raise HTTPException(status_code=500, detail="Server auth mode is invalid.")
+
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header.")
+
     token = authorization[len("Bearer "):].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing bearer token.")
+
     try:
         jwks = _get_clerk_jwks()
         payload = jwt.decode(token, jwks, algorithms=["RS256"], options={"verify_aud": False})
-        return payload["sub"]
+        sub = payload.get("sub")
+        if not sub:
+            raise HTTPException(status_code=401, detail="Token missing subject claim.")
+        return str(sub)
+    except HTTPException:
+        raise
     except (JWTError, RuntimeError) as exc:
         raise HTTPException(status_code=401, detail=f"Invalid or expired token: {exc}") from exc
 
