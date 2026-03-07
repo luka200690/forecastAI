@@ -1,10 +1,10 @@
-# TalkToYourForecast v0.1 (MVP)
+# TalkToYourForecast v0.2 (MVP)
 
 TalkToYourForecast is a local MVP SaaS-style app where you:
 - Upload energy consumption CSV data
 - Generate a forecast with `P10/P50/P90`
 - Compute threshold exceedance risk metrics
-- Ask an LLM to explain forecast behavior using only structured outputs (never raw CSV rows)
+- Ask an LLM to explain forecast behavior using structured forecast outputs
 
 ## Stack
 - Backend: Python 3.11, FastAPI, Uvicorn
@@ -12,6 +12,7 @@ TalkToYourForecast is a local MVP SaaS-style app where you:
 - Models: quantile regression (`LightGBM -> CatBoost -> XGBoost -> sklearn fallback`)
 - Storage: SQLite + SQLAlchemy
 - Frontend: React + Vite + TypeScript
+- Auth: Clerk (JWT validation via JWKS)
 - Charting: Recharts
 - Chat: OpenAI API (`OPENAI_API_KEY`)
 
@@ -28,79 +29,138 @@ TalkToYourForecast is a local MVP SaaS-style app where you:
 - `backend/tests/test_risk.py`
 - `frontend/`
 - `sample_data/energy_sample.csv`
+- `run_local.ps1`
+
+---
 
 ## Environment Variables
-- `OPENAI_API_KEY` (required for `/api/chat`)
+
+### Backend (`backend/.env`)
+- `OPENAI_API_KEY` (required for `/api/chat` and `/api/analysis`)
+- `CLERK_JWKS_URL` (required for authenticated API endpoints)
 - `OPENAI_MODEL` (optional, default `gpt-4.1-mini`)
 - `DATA_DIR` (optional, default `./data`)
 - `CORS_ORIGINS` (optional, default `http://localhost:5173`)
 
-## Backend Setup
-```bash
+### Frontend (`frontend/.env` or `frontend/.env.local`)
+- `VITE_CLERK_PUBLISHABLE_KEY` (required)
+- `VITE_API_BASE_URL` (optional, default `http://localhost:8000`)
+
+Use `.env.example` as a reference template.
+
+---
+
+## Quickstart (Windows PowerShell)
+
+### Option A — one command startup
+```powershell
+./run_local.ps1 \
+  -ClerkPublishableKey "pk_test_..." \
+  -ClerkJwksUrl "https://<your-clerk-domain>/.well-known/jwks.json" \
+  -OpenAIApiKey "sk-..."
+```
+
+This will:
+- create `.venv` if missing,
+- install backend/frontend dependencies,
+- start backend on `http://localhost:8010`,
+- start frontend on `http://localhost:5173`.
+
+Useful flags:
+- `-Mode backend|frontend|all`
+- `-UseReload`
+- `-SkipInstall`
+- `-BackendPort 8000`
+- `-FrontendPort 5173`
+
+### Option B — manual startup
+
+Backend:
+```powershell
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r backend/requirements.txt
-uvicorn backend.app.main:app --reload
+uvicorn backend.app.main:app --reload --port 8000
 ```
 
-Backend runs on `http://localhost:8000`.
-
-## Frontend Setup
-```bash
+Frontend:
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-Frontend runs on `http://localhost:5173`.
+---
 
-Optional frontend API base override:
-```bash
-set VITE_API_BASE_URL=http://localhost:8000
-```
+## Authentication note (important)
 
-## API Examples (curl)
+Most API endpoints require a valid `Authorization: Bearer <JWT>` token from Clerk.
+
+If `CLERK_JWKS_URL` is not configured, authenticated requests will fail.
+
+Endpoints requiring auth include (non-exhaustive):
+- `/api/uploads`
+- `/api/forecast`
+- `/api/chat`
+- `/api/analysis`
+- `/api/uploads/{id}/...`
+- `/api/energy-bill/analyze`
+
+---
+
+## API Examples (authenticated)
+
+Use a Clerk JWT token in `AUTH_TOKEN`.
 
 ### 1) Upload CSV
 ```bash
-curl -X POST "http://localhost:8000/api/uploads" ^
+curl -X POST "http://localhost:8000/api/uploads" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
   -F "file=@sample_data/energy_sample.csv"
 ```
 
 ### 2) Forecast
 ```bash
-curl -X POST "http://localhost:8000/api/forecast" ^
-  -H "Content-Type: application/json" ^
-  -d "{\"upload_id\":\"<UPLOAD_ID>\",\"horizon_days\":14,\"threshold\":140}"
+curl -X POST "http://localhost:8000/api/forecast" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"upload_id":"<UPLOAD_ID>","horizon_days":14,"threshold":140}'
 ```
 
 ### 3) Chat
 ```bash
-curl -X POST "http://localhost:8000/api/chat" ^
-  -H "Content-Type: application/json" ^
-  -d "{\"upload_id\":\"<UPLOAD_ID>\",\"question\":\"why is it higher on Tuesday?\"}"
+curl -X POST "http://localhost:8000/api/chat" \
+  -H "Authorization: Bearer $AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"upload_id":"<UPLOAD_ID>","question":"why is it higher on Tuesday?"}'
 ```
 
 ### 4) Delete Upload
 ```bash
-curl -X DELETE "http://localhost:8000/api/uploads/<UPLOAD_ID>"
+curl -X DELETE "http://localhost:8000/api/uploads/<UPLOAD_ID>" \
+  -H "Authorization: Bearer $AUTH_TOKEN"
 ```
+
+---
 
 ## Happy Path Demo Flow
 1. Start backend and frontend.
-2. Upload `sample_data/energy_sample.csv`.
-3. Click `Generate Forecast` with 14 days selected.
-4. In risk panel, set a threshold and compute risk.
-5. Ask chat questions like:
+2. Sign in via Clerk in the frontend.
+3. Upload `sample_data/energy_sample.csv`.
+4. Click `Run Forecast` (e.g., 14 days).
+5. Optionally set threshold and evaluate risk.
+6. Ask chat questions, for example:
    - `why is it higher on Tuesday?`
    - `how reliable is this?`
    - `what's the peak risk tomorrow?`
-6. Delete the upload to remove local artifacts.
+7. Delete upload to remove local artifacts.
 
-## Data Retention Note
+---
+
+## Data Retention
 - Uploaded and derived artifacts are stored locally under `DATA_DIR/<upload_id>`.
-- This MVP is single-tenant and local-only by default.
-- Use `DELETE /api/uploads/{upload_id}` to remove an upload and its artifacts.
+- This MVP is single-tenant and local-first by default.
+- Use `DELETE /api/uploads/{upload_id}` to remove upload artifacts.
 
 ## Validation and Errors
 - Missing required columns (`timestamp`, `value`) -> `400`
@@ -108,7 +168,7 @@ curl -X DELETE "http://localhost:8000/api/uploads/<UPLOAD_ID>"
 - Empty CSV or empty parsed data -> `400`
 - Multiple `site_id` values -> `400` (single-series only for MVP)
 - Missing upload id -> `404`
-- Missing `OPENAI_API_KEY` for chat -> `503`
+- Missing `OPENAI_API_KEY` for chat/analysis -> `503`
 
 ## Tests
 Run backend unit tests:
@@ -121,23 +181,6 @@ Includes:
 
 ## Limitations and Next Steps
 - Single-series only (no multi-site orchestration)
-- No enterprise auth/billing
-- No SCADA integrations
-- No production hardening (secrets mgmt, queueing, observability, retries)
+- No enterprise auth/billing workflows yet
+- No production hardening yet (secrets mgmt, queueing, observability, retries)
 - Forecasting approach is intentionally simple for MVP
-
-## GitHub Private Upload Checklist
-1. Keep `.env` local only; do not commit secrets.
-2. Confirm `.gitignore` is present at repo root (already added).
-3. Initialize git and make first commit:
-```bash
-git init
-git add .
-git commit -m "Initial MVP: TalkToYourForecast v0.1"
-```
-4. Create a private GitHub repo, then push:
-```bash
-git branch -M main
-git remote add origin https://github.com/<your-user>/<your-private-repo>.git
-git push -u origin main
-```
