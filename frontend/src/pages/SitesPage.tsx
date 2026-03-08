@@ -66,6 +66,7 @@ interface StoredBill {
   analyzed_at: string;
   analysis: EnergyBillAnalysis | null;
   error: string | null;
+  plant_id?: string;
 }
 
 interface CompanyFill {
@@ -219,16 +220,18 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-function BillCard({ bill, onDelete, onFillCompany }: {
+function BillCard({ bill, onDelete, onFillCompany, sites }: {
   bill: StoredBill;
   onDelete: (id: string) => void;
   onFillCompany: (info: CompanyFill) => void;
+  sites: ProductionSite[];
 }) {
   const a = bill.analysis;
   const etype: EnergyBillAnalysis["energy_type"] = a?.energy_type ?? "other";
   const borderColor = a ? ENERGY_COLOR[etype] : "#4A5568";
   const conf = a?.confidence;
   const hasCustomerInfo = a && (a.customer_name || a.customer_address);
+  const linkedPlant = bill.plant_id ? sites.find((s) => s.id === bill.plant_id) : null;
 
   return (
     <div style={{
@@ -247,6 +250,11 @@ function BillCard({ bill, onDelete, onFillCompany }: {
         <span style={{ fontWeight: 600, fontSize: "0.84rem", flex: 1 }}>
           {a?.utility_company ?? bill.filename}
         </span>
+        {linkedPlant && (
+          <span style={{ fontSize: "0.71rem", background: "rgba(96,165,250,0.15)", color: "#60A5FA", border: "1px solid rgba(96,165,250,0.3)", borderRadius: 4, padding: "1px 7px", whiteSpace: "nowrap" }}>
+            🏭 {linkedPlant.name}
+          </span>
+        )}
         {a?.billing_period && (
           <span style={{ fontSize: "0.73rem", color: "var(--fg-muted)" }}>{a.billing_period}</span>
         )}
@@ -314,7 +322,11 @@ function BillCard({ bill, onDelete, onFillCompany }: {
   );
 }
 
-function EnergyContractsCard({ onFillCompany }: { onFillCompany: (info: CompanyFill) => void }) {
+function EnergyContractsCard({ onFillCompany, sites, onFindOrCreatePlant }: {
+  onFillCompany: (info: CompanyFill) => void;
+  sites: ProductionSite[];
+  onFindOrCreatePlant: (analysis: EnergyBillAnalysis) => string;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [bills, setBills] = useState<StoredBill[]>(() => {
     try { return JSON.parse(localStorage.getItem(LS_BILLS) ?? "[]") as StoredBill[]; }
@@ -328,7 +340,10 @@ function EnergyContractsCard({ onFillCompany }: { onFillCompany: (info: CompanyF
       const id = crypto.randomUUID();
       setBills((p) => [...p, { id, filename: file.name, analyzed_at: new Date().toISOString(), analysis: null, error: null }]);
       analyzeEnergyBill(file)
-        .then((analysis) => setBills((p) => p.map((b) => b.id === id ? { ...b, analysis } : b)))
+        .then((analysis) => {
+          const plant_id = onFindOrCreatePlant(analysis);
+          setBills((p) => p.map((b) => b.id === id ? { ...b, analysis, plant_id } : b));
+        })
         .catch((err: unknown) => {
           const msg = err instanceof Error ? err.message : "Analysis failed.";
           setBills((p) => p.map((b) => b.id === id ? { ...b, error: msg } : b));
@@ -375,7 +390,7 @@ function EnergyContractsCard({ onFillCompany }: { onFillCompany: (info: CompanyF
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {bills.map((b) => (
-            <BillCard key={b.id} bill={b} onDelete={deleteBill} onFillCompany={onFillCompany} />
+            <BillCard key={b.id} bill={b} onDelete={deleteBill} onFillCompany={onFillCompany} sites={sites} />
           ))}
         </div>
       )}
@@ -437,6 +452,27 @@ export function SitesPage() {
   const handleDelete = (id: string) =>
     setSites((p) => p.filter((s) => s.id !== id));
 
+  const findOrCreatePlant = (analysis: EnergyBillAnalysis): string => {
+    const name = (analysis.customer_name ?? "").trim();
+    if (name) {
+      const existing = sites.find((s) => s.name.toLowerCase() === name.toLowerCase());
+      if (existing) return existing.id;
+    }
+    const newPlant: ProductionSite = {
+      id: crypto.randomUUID(),
+      name: name || analysis.customer_address || "Unknown Plant",
+      category: "",
+      lat: 45.46, lon: 9.19,
+      floor_area_m2: 0,
+      peak_demand_kw: analysis.contracted_capacity_kw ?? 0,
+      status: "active",
+      commissioning_date: "",
+      notes: [analysis.customer_address, analysis.customer_city].filter(Boolean).join(", "),
+    };
+    setSites((p) => [...p, newPlant]);
+    return newPlant.id;
+  };
+
   const mapCenter: [number, number] = sites.length
     ? [sites.reduce((a, s) => a + s.lat, 0) / sites.length, sites.reduce((a, s) => a + s.lon, 0) / sites.length]
     : [45.46, 9.19];
@@ -488,6 +524,19 @@ export function SitesPage() {
           </label>
         </div>
       </div>
+
+      {/* ── Energy Contracts card ── */}
+      <EnergyContractsCard
+        onFillCompany={(info) => {
+          if (info.name)    setComp("name",    info.name);
+          if (info.address) setComp("address", info.address);
+          if (info.city)    setComp("city",    info.city);
+          if (info.country) setComp("country", info.country);
+          if (info.vat_id)  setComp("vat_id",  info.vat_id);
+        }}
+        sites={sites}
+        onFindOrCreatePlant={findOrCreatePlant}
+      />
 
       {/* ── Plants table card ── */}
       <div className="card">
@@ -559,17 +608,6 @@ export function SitesPage() {
           </div>
         )}
       </div>
-
-      {/* ── Energy Contracts card ── */}
-      <EnergyContractsCard
-        onFillCompany={(info) => {
-          if (info.name)    setComp("name",    info.name);
-          if (info.address) setComp("address", info.address);
-          if (info.city)    setComp("city",    info.city);
-          if (info.country) setComp("country", info.country);
-          if (info.vat_id)  setComp("vat_id",  info.vat_id);
-        }}
-      />
 
       {/* ── Map card ── */}
       <div className="card sites-map-card">
