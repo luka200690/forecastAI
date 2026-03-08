@@ -25,6 +25,9 @@ from .db import Base, engine, get_db
 from .models import ChatMessage, ContractConfigModel, Upload
 from .schemas import (
     AnalysisRequest,
+    BillForecastRequest,
+    BillForecastResponse,
+    BillManagerResponse,
     ChatHistoryResponse,
     ChatHistoryItem,
     ChatRequest,
@@ -49,6 +52,7 @@ from .services.features import infer_granularity
 from .services.forecast import generate_forecast
 from .services.recommendations import generate_recommendations
 from .services.weather import get_weather_forecast
+from .services.alpha_energy import forecast_monthly_costs, parse_bill_csv, run_bill_manager
 
 
 DATA_DIR = Path(os.getenv("DATA_DIR", "./data"))
@@ -714,6 +718,56 @@ async def analyze_bill(
     except Exception as exc:
         raise HTTPException(500, f"Bill analysis failed: {exc}") from exc
     return result
+
+
+# ── Alpha Energy Manager endpoints ───────────────────────────────────────────
+
+@app.post("/api/alpha/bill-manager/analyze", response_model=BillManagerResponse)
+async def alpha_bill_manager_analyze(
+    file: UploadFile = File(...),
+    user_id: str = Depends(get_current_user),
+) -> BillManagerResponse:
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=415, detail="Only CSV files are supported.")
+
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    try:
+        parsed = parse_bill_csv(raw_bytes)
+        artifacts = run_bill_manager(parsed)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Bill manager failed: {exc}") from exc
+
+    return BillManagerResponse(**{
+        "ledger": artifacts.ledger,
+        "anomalies": artifacts.anomalies,
+        "summary": artifacts.summary,
+    })
+
+
+@app.post("/api/alpha/forecasting/bill-cost", response_model=BillForecastResponse)
+def alpha_forecast_bill_cost(
+    request: BillForecastRequest,
+    user_id: str = Depends(get_current_user),
+) -> BillForecastResponse:
+    try:
+        artifacts = forecast_monthly_costs(
+            ledger=[item.model_dump(mode="json") for item in request.ledger],
+            months_ahead=request.months_ahead,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Forecasting agent failed: {exc}") from exc
+
+    return BillForecastResponse(**{
+        "forecast": artifacts.forecast,
+        "metrics": artifacts.metrics,
+    })
 
 
 # ── Delete endpoint ───────────────────────────────────────────────────────────

@@ -202,3 +202,69 @@ class EnrichmentResponse(BaseModel):
 class ContractConfigResponse(BaseModel):
     upload_id: str
     config: ContractConfig | None
+
+
+# ── Alpha energy manager (bill manager + forecasting agent) ──────────────────
+
+class BillLedgerItem(BaseModel):
+    period_start: datetime
+    period_end: datetime
+    kwh: float
+    fixed_eur: float = 0.0
+    taxes_eur: float = 0.0
+    fees_eur: float = 0.0
+    variable_eur: float = 0.0
+    total_eur: float
+    eur_per_kwh: float | None = None
+
+
+class BillAnomaly(BaseModel):
+    type: str
+    severity: Literal["low", "medium", "high"]
+    period_start: datetime
+    period_end: datetime
+    detail: str
+
+
+class BillManagerSummary(BaseModel):
+    months: int
+    total_kwh: float
+    total_eur: float
+    avg_monthly_eur: float
+    avg_eur_per_kwh: float
+    anomaly_count: int
+    recommended_action: Literal["pay", "pay_with_attention", "investigate"]
+
+
+class BillManagerResponse(BaseModel):
+    ledger: list[BillLedgerItem]
+    anomalies: list[BillAnomaly]
+    summary: BillManagerSummary
+
+
+class BillForecastRequest(BaseModel):
+    ledger: list[BillLedgerItem]
+    months_ahead: int = Field(default=3, ge=1, le=12)
+
+
+class BillForecastPoint(BaseModel):
+    month_end: datetime
+    cost_p10_eur: float
+    cost_p50_eur: float
+    cost_p90_eur: float
+    kwh_p10: float
+    kwh_p50: float
+    kwh_p90: float
+
+
+class BillForecastMetrics(BaseModel):
+    backtest_mae_eur: float
+    backtest_mape_pct: float
+    history_months: int
+    model: str
+    generated_at: datetime
+
+
+class BillForecastResponse(BaseModel):
+    forecast: list[BillForecastPoint]
+    metrics: BillForecastMetrics

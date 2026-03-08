@@ -194,6 +194,20 @@ pytest backend/tests -q
 
 Includes:
 - `backend/tests/test_risk.py` for empirical and fallback heuristic risk modes.
+- `backend/tests/test_alpha_energy.py` for alpha bill manager + bill-cost forecasting.
+
+## Alpha Energy Manager APIs
+
+New alpha endpoints for Luca's Energy Manager Department:
+
+- `POST /api/alpha/bill-manager/analyze` (CSV upload)
+  - Required columns: `period_start,period_end,kwh,total_eur`
+  - Optional: `fixed_eur,taxes_eur,fees_eur,variable_eur`
+  - Returns normalized ledger, anomalies, and monthly summary.
+
+- `POST /api/alpha/forecasting/bill-cost`
+  - Input: ledger items + `months_ahead` (1..12)
+  - Returns monthly `P10/P50/P90` forecasts for cost and kWh, plus backtest metrics.
 
 ## Limitations and Next Steps
 - Single-series only (no multi-site orchestration)
