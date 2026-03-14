@@ -25,6 +25,7 @@ class Upload(Base):
     schedule_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
     schedule_horizon_days: Mapped[int] = mapped_column(Integer, default=14, nullable=False, server_default="14")
     schedule_threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    schedule_frequency: Mapped[str] = mapped_column(String, default="daily", nullable=False, server_default="daily")
 
 
 class ContractConfigModel(Base):

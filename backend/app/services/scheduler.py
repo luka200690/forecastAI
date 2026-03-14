@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from ..db import SessionLocal
 from ..models import Upload
@@ -9,9 +9,15 @@ from .forecast import generate_forecast
 
 logger = logging.getLogger(__name__)
 
+_FREQ_DELTA: dict[str, timedelta] = {
+    "daily":   timedelta(hours=20),
+    "weekly":  timedelta(days=6),
+    "monthly": timedelta(days=27),
+}
+
 
 def run_scheduled_forecasts() -> None:
-    """Daily job: re-run forecast for every upload that has schedule_enabled=True."""
+    """Daily job: re-run forecast for every upload that is due based on its frequency."""
     db = SessionLocal()
     try:
         uploads = db.query(Upload).filter(Upload.schedule_enabled.is_(True)).all()
@@ -19,8 +25,14 @@ def run_scheduled_forecasts() -> None:
             logger.info("Scheduled forecasts: no enabled schedules found.")
             return
 
-        logger.info("Scheduled forecasts: running for %d upload(s).", len(uploads))
+        logger.info("Scheduled forecasts: checking %d upload(s).", len(uploads))
         for upload in uploads:
+            freq = upload.schedule_frequency or "daily"
+            delta = _FREQ_DELTA.get(freq, timedelta(hours=20))
+            last = upload.last_forecast_created_at
+            if last and (datetime.now(timezone.utc) - last) < delta:
+                logger.info("Skipping upload %s: not due yet (freq=%s)", upload.id, freq)
+                continue
             try:
                 artifacts = generate_forecast(
                     upload,

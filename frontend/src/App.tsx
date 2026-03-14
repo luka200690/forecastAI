@@ -21,6 +21,7 @@ import { ForecastChart } from "./components/ForecastChart";
 import { ForecastModal } from "./components/ForecastModal";
 import { StatusToasts, type Toast } from "./components/StatusToasts";
 import { HistoryPage } from "./pages/HistoryPage";
+import { HomePage } from "./pages/HomePage";
 import { SitesPage } from "./pages/SitesPage";
 
 // ── Report generation ────────────────────────────────────────────────────────
@@ -178,7 +179,7 @@ ${top3Recs.length > 0 ? `<h2>Top Recommendations</h2><ul>${recItems}</ul>` : ""}
 
 // ── App ──────────────────────────────────────────────────────────────────────
 function AppInner() {
-  const [page, setPage]         = useState<"forecast" | "history" | "sites">("forecast");
+  const [page, setPage]         = useState<"home" | "forecast" | "history" | "sites">("home");
   const [uploadInfo, setUploadInfo] = useState<UploadResponse | null>(null);
   const [forecast,   setForecast]   = useState<ForecastResponse | null>(null);
   const [dateFrom,   setDateFrom]   = useState("");
@@ -390,7 +391,7 @@ function AppInner() {
         <div className="tb-left">
           <span className="topbar-logo">⚡ ForecastAI</span>
           <div className="topbar-sep" />
-          <span className="page-title">{page === "history" ? "History" : page === "sites" ? "Manufacturing Plants" : "Forecasting"}</span>
+          <span className="page-title">{page === "home" ? "Home" : page === "history" ? "History" : page === "sites" ? "Manufacturing Plants" : "Forecasting"}</span>
         </div>
         <div className="tb-right">
           <button className="btn-icon" onClick={() => setDarkMode((d) => !d)} title={darkMode ? "Switch to light mode" : "Switch to dark mode"}>
@@ -419,6 +420,14 @@ function AppInner() {
 
         {/* Sidebar spans full height below primary topbar */}
         <aside className="left-sidebar">
+          <div
+            className={`sidebar-icon${page === "home" ? " active" : ""}`}
+            title="Home"
+            onClick={() => setPage("home")}
+            style={{ cursor: "pointer" }}
+          >
+            🏠
+          </div>
           <div
             className={`sidebar-icon${page === "forecast" ? " active" : ""}`}
             title="Forecast"
@@ -451,7 +460,15 @@ function AppInner() {
         {/* Right panel */}
         <div className="right-panel">
 
-          {page === "sites" ? (
+          {page === "home" ? (
+            <div className="sites-page-wrapper">
+              <HomePage
+                onOpenForecastModal={() => setModalOpen(true)}
+                onNavigateHistory={() => setPage("history")}
+                onNavigatePlants={() => setPage("sites")}
+              />
+            </div>
+          ) : page === "sites" ? (
             <div className="sites-page-wrapper">
               <SitesPage />
             </div>

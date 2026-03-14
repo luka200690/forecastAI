@@ -93,6 +93,7 @@ def startup_event() -> None:
             ("schedule_enabled",       "BOOLEAN DEFAULT 0 NOT NULL"),
             ("schedule_horizon_days",  "INTEGER DEFAULT 14 NOT NULL"),
             ("schedule_threshold",     "REAL"),
+            ("schedule_frequency",     "TEXT DEFAULT 'daily' NOT NULL"),
         ]
         for col_name, col_def in migrations:
             if col_name not in cols:
@@ -305,6 +306,8 @@ def list_uploads(
             metrics=metrics,
             schedule_enabled=bool(up.schedule_enabled),
             schedule_horizon_days=up.schedule_horizon_days or 14,
+            schedule_threshold=up.schedule_threshold,
+            schedule_frequency=up.schedule_frequency or "daily",
         ))
     return items
 
@@ -564,13 +567,20 @@ def set_schedule(
     upload.schedule_enabled = config.enabled
     upload.schedule_horizon_days = config.horizon_days
     upload.schedule_threshold = config.threshold
+    upload.schedule_frequency = config.frequency
     db.add(upload)
     db.commit()
+    freq_label = {
+        "daily":   "daily at 06:00 UTC",
+        "weekly":  "weekly on Mon at 06:00 UTC",
+        "monthly": "monthly on the 1st at 06:00 UTC",
+    }.get(config.frequency, config.frequency)
     return ScheduleResponse(
         enabled=upload.schedule_enabled,
         horizon_days=upload.schedule_horizon_days,
         threshold=upload.schedule_threshold,
-        next_run_at="daily at 06:00 UTC",
+        frequency=upload.schedule_frequency,
+        next_run_at=freq_label if config.enabled else "disabled",
     )
 
 
@@ -588,6 +598,7 @@ def delete_schedule(
         enabled=False,
         horizon_days=upload.schedule_horizon_days,
         threshold=upload.schedule_threshold,
+        frequency=upload.schedule_frequency or "daily",
         next_run_at="disabled",
     )
 

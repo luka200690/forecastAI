@@ -25,6 +25,8 @@ class UploadListItem(BaseModel):
     metrics: "Metrics | None"
     schedule_enabled: bool = False
     schedule_horizon_days: int = 14
+    schedule_threshold: float | None = None
+    schedule_frequency: str = "daily"
 
 
 class UploadResponse(BaseModel):
@@ -119,13 +121,15 @@ class ScheduleConfig(BaseModel):
     enabled: bool
     horizon_days: HorizonDays = 14
     threshold: float | None = Field(default=None, gt=0)
+    frequency: Literal["daily", "weekly", "monthly"] = "daily"
 
 
 class ScheduleResponse(BaseModel):
     enabled: bool
     horizon_days: int
     threshold: float | None
-    next_run_at: str  # human-readable, e.g. "daily at 06:00 UTC"
+    frequency: str
+    next_run_at: str
 
 
 # ── Contract config & cost/risk enrichment ────────────────────────────────────

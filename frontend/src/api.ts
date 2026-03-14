@@ -73,6 +73,8 @@ export interface UploadListItem {
   metrics: Metrics | null;
   schedule_enabled: boolean;
   schedule_horizon_days: number;
+  schedule_threshold: number | null;
+  schedule_frequency: string;
 }
 
 export interface ChatHistoryItem {
@@ -84,16 +86,20 @@ export interface ChatHistoryResponse {
   messages: ChatHistoryItem[];
 }
 
+export type ScheduleFrequency = "daily" | "weekly" | "monthly";
+
 export interface ScheduleConfig {
   enabled: boolean;
   horizon_days: HorizonDays;
   threshold?: number | null;
+  frequency?: ScheduleFrequency;
 }
 
 export interface ScheduleResponse {
   enabled: boolean;
   horizon_days: number;
   threshold: number | null;
+  frequency: string;
   next_run_at: string;
 }
 
